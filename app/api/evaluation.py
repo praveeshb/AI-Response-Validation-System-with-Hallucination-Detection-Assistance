@@ -1,0 +1,57 @@
+from fastapi import APIRouter, HTTPException
+from app.models import EvaluationRequest, EvaluationResult
+from app.agents.orchestrator import EvaluationOrchestrator
+from typing import Dict, Any
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/api/evaluation", tags=["evaluation"])
+orchestrator = EvaluationOrchestrator()
+
+@router.post("/submit", response_model=Dict[str, Any])
+async def submit_evaluation(request: EvaluationRequest):
+    """
+    Submit a question and AI response for evaluation.
+    
+    The system will evaluate the response across multiple dimensions:
+    - Relevance: How well the response addresses the question
+    - Accuracy: Factual correctness of the response
+    - Hallucination: Detection of fabricated information
+    - Completeness: Thoroughness of the response
+    """
+    try:
+        logger.info(f"Received evaluation request for question: {request.question[:50]}...")
+        
+        # Run evaluation pipeline
+        result = orchestrator.evaluate(
+            question=request.question,
+            ai_response=request.ai_response,
+            reference_answer=request.reference_answer,
+            source_document=request.source_document
+        )
+        
+        # Format response
+        response = {
+            "evaluation_id": result.get("final_verdict", {}).get("verdict", "unknown"),
+            "question": result["question"],
+            "ai_response": result["ai_response"],
+            "scores": result["final_verdict"]["scores"],
+            "verdict": result["final_verdict"]["verdict"],
+            "average_score": result["final_verdict"]["average_score"],
+            "details": result["final_verdict"]["details"],
+            "retrieved_context": result.get("retrieved_context", "")
+        }
+        
+        logger.info(f"Evaluation completed. Verdict: {response['verdict']}")
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error during evaluation: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "evaluation-api"}
