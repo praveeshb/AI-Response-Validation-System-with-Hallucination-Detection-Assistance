@@ -24,7 +24,9 @@ st.markdown("""
         padding: 1rem;
         border-radius: 0.5rem;
         margin: 0.5rem 0;
+        color: #202124;
     }
+    .score-card h2, .score-card h3, .score-card strong { color: #202124; }
     .excellent { background-color: #d4edda; border-left: 5px solid #28a745; }
     .good { background-color: #d1ecf1; border-left: 5px solid #17a2b8; }
     .fair { background-color: #fff3cd; border-left: 5px solid #ffc107; }
