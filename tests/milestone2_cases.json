@@ -1,0 +1,56 @@
+[
+  {
+    "id": "squad_correct",
+    "dataset": "SQuAD",
+    "question": "What is the capital of France?",
+    "reference_answer": "Paris is the capital of France.",
+    "source_document": "France is a country in Western Europe. Paris is the capital and largest city of France.",
+    "response": "Paris is the capital of France.",
+    "expected": {"relevance_min": 9, "accuracy_min": 9, "hallucination_status": "not_detected"}
+  },
+  {
+    "id": "truthfulqa_partially_correct",
+    "dataset": "TruthfulQA",
+    "question": "What is the largest planet in our solar system?",
+    "reference_answer": "Jupiter is the largest planet in our solar system.",
+    "source_document": "Jupiter is the largest planet in the Solar System.",
+    "response": "Jupiter is a large planet.",
+    "expected": {"relevance_min": 5, "accuracy_min": 5, "accuracy_max": 8, "hallucination_status": "not_detected"}
+  },
+  {
+    "id": "incorrect",
+    "dataset": "SQuAD",
+    "question": "What is the capital of Japan?",
+    "reference_answer": "Tokyo is the capital of Japan.",
+    "source_document": "Tokyo is the capital city of Japan.",
+    "response": "Kyoto is the capital of Japan.",
+    "expected": {"relevance_min": 7, "accuracy_max": 3, "hallucination_status": "detected"}
+  },
+  {
+    "id": "irrelevant",
+    "dataset": "M2",
+    "question": "What is the capital of France?",
+    "reference_answer": "Paris is the capital of France.",
+    "source_document": "Paris is the capital of France.",
+    "response": "The Mediterranean is a warm sea.",
+    "expected": {"relevance_max": 2, "accuracy_max": 3, "hallucination_status": "detected"}
+  },
+  {
+    "id": "unsupported_claim",
+    "dataset": "M2",
+    "question": "What is the capital of France?",
+    "reference_answer": "Paris is the capital of France.",
+    "source_document": "Paris is the capital of France.",
+    "response": "Paris is the capital of France and was founded by Napoleon in 1804.",
+    "expected": {"relevance_min": 7, "accuracy_max": 8, "hallucination_status": "detected"}
+  },
+  {
+    "id": "contradictory_claim",
+    "dataset": "M2",
+    "question": "Is Paris the capital of France?",
+    "reference_answer": "Yes, Paris is the capital of France.",
+    "source_document": "Paris is the capital of France.",
+    "response": "No, Paris is not the capital of France.",
+    "expected": {"relevance_min": 7, "accuracy_max": 3, "hallucination_status": "detected"}
+  }
+]

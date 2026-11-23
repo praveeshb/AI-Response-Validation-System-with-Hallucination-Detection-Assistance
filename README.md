@@ -169,6 +169,22 @@ The reference knowledge base provides contextual information for evaluation. Whe
 - **TruthfulQA**: Benchmark for measuring truthfulness of language models
 - **SQuAD**: Stanford Question Answering Dataset for reading comprehension
 
+## Milestone 2 Validation
+
+The Relevance, Accuracy, and Hallucination agents expose structured scores and reasoning:
+
+- Relevance: `score`, `category`, `scale`, and `explanation`
+- Accuracy: `score`, `category`, `supporting_evidence`, `claim_assessment`, and `explanation`
+- Hallucination: `hallucination_status`, `flagged_claims`, `claim_assessment`, `supporting_evidence`, and `explanation`
+
+Run the representative M2 consistency suite from the project root:
+
+```bash
+python -m unittest tests/test_milestone2.py
+```
+
+The suite covers correct, partial, incorrect, irrelevant, unsupported, and contradictory responses using local examples from TruthfulQA/SQuAD-style categories.
+
 ## Future Enhancements
 - Batch evaluation module
 - Evaluation report generation

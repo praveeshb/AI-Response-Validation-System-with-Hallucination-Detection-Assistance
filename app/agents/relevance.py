@@ -44,9 +44,12 @@ Explanation: [detailed explanation of why you gave this score]"""),
                 input_data["retrieved_context"] = retrieved_context
             result = chain.invoke(input_data)
             response_text = result.content
+            score = self._extract_score(response_text)
             return {
                 "dimension": "relevance",
-                "score": self._extract_score(response_text),
+                "score": score,
+                "category": self._category(score),
+                "scale": "0-10",
                 "explanation": self._extract_explanation(response_text),
             }
 
@@ -55,12 +58,33 @@ Explanation: [detailed explanation of why you gave this score]"""),
     def _fallback_evaluate(self, question: str, ai_response: str, retrieved_context: str = None) -> Dict[str, Any]:
         """Rule-based fallback used when no LLM is configured."""
         if not ai_response or not ai_response.strip():
-            return {"dimension": "relevance", "score": 0.0, "explanation": "The response is empty, so it does not answer the question."}
+            return {
+                "dimension": "relevance",
+                "score": 0.0,
+                "category": "very poor",
+                "scale": "0-10",
+                "explanation": "The response is empty, so it does not answer the question.",
+            }
 
-        q_tokens = {token.lower() for token in re.findall(r"\b\w+\b", question) if token.strip()}
-        r_tokens = {token.lower() for token in re.findall(r"\b\w+\b", ai_response) if token.strip()}
+        stop_words = {
+            "a", "an", "the", "is", "are", "was", "were", "of", "to", "and",
+            "or", "for", "in", "on", "at", "by", "it", "what", "which", "how",
+            "why", "when", "where", "who",
+        }
+        q_tokens = {
+            token.lower() for token in re.findall(r"\b\w+\b", question)
+            if token.lower() not in stop_words
+        }
+        r_tokens = {
+            token.lower() for token in re.findall(r"\b\w+\b", ai_response)
+            if token.lower() not in stop_words
+        }
+        stem_set = lambda tokens: {re.sub(r"(ing|ed|s)$", "", token) for token in tokens}
+        q_stems = stem_set(q_tokens)
+        r_stems = stem_set(r_tokens)
+        stem_overlap = len(q_stems & r_stems)
         overlap = len(q_tokens & r_tokens)
-        overlap_ratio = overlap / max(len(q_tokens), 1)
+        overlap_ratio = max(overlap, stem_overlap) / max(len(q_tokens), 1)
         response_length = len(re.findall(r"\b\w+\b", ai_response))
 
         score = 0.0
@@ -70,16 +94,37 @@ Explanation: [detailed explanation of why you gave this score]"""),
             score = 6.0
         elif overlap_ratio > 0:
             score = 4.0
-
-        if retrieved_context and "not provided" not in str(retrieved_context).lower():
-            score = min(10.0, max(score, 5.0))
+        if q_tokens and r_tokens and q_tokens.issubset(r_tokens):
+            score = 10.0
+        if overlap_ratio >= 0.5:
+            score = max(score, 9.0)
+        if overlap > 0 or stem_overlap > 0:
+            score = max(score, 6.0)
 
         explanation = (
             "The response is "
             + ("highly relevant" if score >= 8 else "partially relevant" if score >= 5 else "weakly relevant")
             + " to the question because it shares " + str(overlap) + " matching content terms with the prompt."
         )
-        return {"dimension": "relevance", "score": round(score, 2), "explanation": explanation}
+        return {
+            "dimension": "relevance",
+            "score": round(score, 2),
+            "category": self._category(score),
+            "scale": "0-10",
+            "explanation": explanation,
+        }
+
+    @staticmethod
+    def _category(score: float) -> str:
+        if score >= 9:
+            return "excellent"
+        if score >= 7:
+            return "good"
+        if score >= 5:
+            return "fair"
+        if score >= 3:
+            return "poor"
+        return "very poor"
 
     def _extract_score(self, text: str) -> float:
         """Extract score from the response."""

@@ -34,6 +34,7 @@ async def submit_evaluation(request: EvaluationRequest):
             "verdict": final_verdict.get("verdict", "Unknown"),
             "average_score": final_verdict.get("average_score", 0.0),
             "details": final_verdict.get("details", {}),
+            "agent_results": result.get("agent_results", {}),
             "retrieved_context": result.get("retrieved_context", "")
         }
 
