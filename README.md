@@ -140,7 +140,9 @@ Submit a question and AI response for evaluation.
     "hallucination": 10.0,
     "completeness": 8.0
   },
-  "verdict": "Excellent",
+  "verdict": "Pass",
+  "weighted_score": 9.38,
+  "reasoning_summary": "...",
   "details": {
     "relevance_explanation": "...",
     "accuracy_explanation": "...",
@@ -149,6 +151,16 @@ Submit a question and AI response for evaluation.
   }
 }
 ```
+
+### POST /api/evaluation/batch
+Evaluate several question/answer pairs in one request. The `evaluations` array
+uses the same fields as `/submit`. The response includes a result or an error
+for each row, so one failed evaluation does not hide successful rows.
+
+The Streamlit batch tab accepts CSV files with required `question` and
+`ai_response` columns (`answer` is also accepted), plus optional
+`reference_answer` and `source_document` columns. It displays a verdict and
+dimension-score summary with expandable per-row reasoning and flagged claims.
 
 ## Evaluation Methodology
 
@@ -159,11 +171,13 @@ The system uses GPT-4 as a judge to evaluate responses across multiple dimension
 The reference knowledge base provides contextual information for evaluation. When evaluating accuracy and hallucination, the system retrieves relevant reference content from the vector store to ground the evaluation in factual information.
 
 ### Scoring Scale
-- **9-10**: Excellent
-- **7-8**: Good
-- **5-6**: Fair
-- **3-4**: Poor
-- **0-2**: Very Poor
+- Relevance weight: 25%
+- Accuracy weight: 30%
+- Hallucination-free score weight: 25%
+- Completeness weight: 20%
+- **8-10 weighted score**: Pass
+- **5 to <8 weighted score**: Needs Improvement
+- **0 to <5 weighted score**: Fail
 
 ## Datasets Used
 - **TruthfulQA**: Benchmark for measuring truthfulness of language models
@@ -185,8 +199,17 @@ python -m unittest tests/test_milestone2.py
 
 The suite covers correct, partial, incorrect, irrelevant, unsupported, and contradictory responses using local examples from TruthfulQA/SQuAD-style categories.
 
+## Milestone 3 Validation
+
+The completeness agent reports specific omitted aspects with reasoning. Each
+evaluation includes four dimension scores, weighted verdict reasoning, and
+hallucination flags. CSV parsing and weighted verdict behavior are covered by:
+
+```bash
+python -m unittest tests/test_milestone3.py
+```
+
 ## Future Enhancements
-- Batch evaluation module
 - Evaluation report generation
 - Advanced visualization dashboard
 - Custom dataset upload support

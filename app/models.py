@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from uuid import uuid4
 
 class EvaluationRequest(BaseModel):
@@ -7,6 +7,13 @@ class EvaluationRequest(BaseModel):
     ai_response: str = Field(..., description="The AI-generated response to evaluate")
     reference_answer: Optional[str] = Field(None, description="Optional reference answer for comparison")
     source_document: Optional[str] = Field(None, description="Optional source document for context")
+
+
+class BatchEvaluationRequest(BaseModel):
+    evaluations: List[EvaluationRequest] = Field(
+        ..., min_length=1, description="Question/answer submissions to evaluate"
+    )
+
 
 class EvaluationScore(BaseModel):
     dimension: str

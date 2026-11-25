@@ -1,7 +1,15 @@
+import math
 from typing import Dict, Any
 
 class ScoringUtils:
     """Utilities for scoring and verdict generation"""
+
+    DIMENSION_WEIGHTS = {
+        "relevance": 0.25,
+        "accuracy": 0.30,
+        "hallucination": 0.25,
+        "completeness": 0.20,
+    }
     
     SCORE_RANGES = {
         "excellent": (9, 10),
@@ -13,22 +21,39 @@ class ScoringUtils:
     
     @staticmethod
     def get_verdict(scores: Dict[str, float]) -> str:
-        """Generate overall verdict based on individual scores"""
+        """Return the milestone verdict for a weighted score."""
         if not scores:
             return "Unable to evaluate"
-        
-        avg_score = sum(scores.values()) / len(scores)
-        
-        if avg_score >= 9:
-            return "Excellent"
-        elif avg_score >= 7:
-            return "Good"
-        elif avg_score >= 5:
-            return "Fair"
-        elif avg_score >= 3:
-            return "Poor"
-        else:
-            return "Very Poor"
+        weighted_score, _ = ScoringUtils.weighted_score(scores)
+        if weighted_score >= 8:
+            return "Pass"
+        if weighted_score >= 5:
+            return "Needs Improvement"
+        return "Fail"
+
+    @staticmethod
+    def weighted_score(scores: Dict[str, float]):
+        """Calculate a normalized weighted score for the supplied dimensions."""
+        if not scores:
+            return 0.0, {}
+
+        weights = {}
+        for dimension, score in scores.items():
+            if dimension not in ScoringUtils.DIMENSION_WEIGHTS:
+                raise ValueError(f"Unknown scoring dimension: {dimension}")
+            if isinstance(score, bool) or not isinstance(score, (int, float)):
+                raise ValueError(f"Score for {dimension} must be a number")
+            if not math.isfinite(score) or not 0 <= score <= 10:
+                raise ValueError(f"Score for {dimension} must be between 0 and 10")
+            weights[dimension] = ScoringUtils.DIMENSION_WEIGHTS[dimension]
+
+        total_weight = sum(weights.values())
+        normalized_weights = {
+            dimension: weight / total_weight
+            for dimension, weight in weights.items()
+        }
+        result = sum(scores[dimension] * weight for dimension, weight in normalized_weights.items())
+        return round(result, 2), normalized_weights
     
     @staticmethod
     def get_score_category(score: float) -> str:

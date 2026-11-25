@@ -120,19 +120,23 @@ Datasets → Cleaning → Chunking → Embedding → Vector Store → Semantic S
 - Scores on 0-10 scale
 
 #### f. Verdict Agent
-- Aggregates scores from all agents
-- Calculates average score
-- Generates overall verdict (Excellent/Good/Fair/Poor/Very Poor)
+- Aggregates the four dimension scores using configured weights
+- Produces a consolidated reasoning summary, including flagged hallucination claims
+- Generates a Pass, Needs Improvement, or Fail verdict
 
 ### 4. Scoring & Verdict Module
 **Purpose**: Aggregate and present evaluation results
 
-**Scoring Scale**:
-- 9-10: Excellent
-- 7-8: Good
-- 5-6: Fair
-- 3-4: Poor
-- 0-2: Very Poor
+**Dimension Weights**:
+- Relevance: 25%
+- Accuracy: 30%
+- Hallucination-free score: 25%
+- Completeness: 20%
+
+**Verdict Thresholds**:
+- Weighted score >= 8: Pass
+- Weighted score >= 5 and < 8: Needs Improvement
+- Weighted score < 5: Fail
 
 **Output Format**:
 ```json
@@ -143,8 +147,9 @@ Datasets → Cleaning → Chunking → Embedding → Vector Store → Semantic S
     "hallucination": 10.0,
     "completeness": 8.0
   },
-  "verdict": "Excellent",
-  "average_score": 9.375,
+  "verdict": "Pass",
+  "weighted_score": 9.38,
+  "reasoning_summary": "...",
   "details": {
     "relevance_explanation": "...",
     "accuracy_explanation": "...",
@@ -189,6 +194,11 @@ Datasets → Cleaning → Chunking → Embedding → Vector Store → Semantic S
 4. **Verdict Generation**: Verdict Agent aggregates scores and generates final verdict
 5. **Result Presentation**: Results are returned with scores, verdict, and detailed explanations
 
+The batch endpoint (`POST /api/evaluation/batch`) evaluates each supplied row
+independently and returns per-row results and failures. The Streamlit UI accepts
+CSV uploads with `question` and `ai_response` (or `answer`) columns and optional
+reference-answer and source-document columns.
+
 ## Scalability Considerations
 
 ### Current Design
@@ -197,7 +207,6 @@ Datasets → Cleaning → Chunking → Embedding → Vector Store → Semantic S
 - Sequential agent execution
 
 ### Future Enhancements
-- Batch evaluation module for processing multiple requests
 - Async agent execution for parallel processing
 - Distributed vector store for larger datasets
 - Caching layer for frequently asked questions

@@ -14,6 +14,15 @@ from app.utils.config import config
 class CompletenessJudgeAgent:
     """Evaluates the completeness of an AI response."""
 
+    QUESTION_STOP_WORDS = {
+        "a", "an", "the", "is", "are", "was", "were", "be", "been", "being",
+        "do", "does", "did", "what", "which", "who", "whom", "when", "where",
+        "why", "how", "can", "could", "would", "should", "will", "please",
+        "explain", "describe", "discuss", "list", "name", "give", "tell",
+        "of", "to", "and", "or", "for", "in", "on", "at", "by", "with",
+        "from", "about", "as", "into", "than", "that", "this", "it",
+    }
+
     def __init__(self):
         self.llm = None
         self.prompt = None
@@ -29,11 +38,13 @@ Score the completeness on a scale of 0-10:
 - 3-4: Poor - The response is incomplete and misses significant aspects
 - 0-2: Very Poor - The response is very incomplete or superficial
 
-Consider whether the response provides sufficient detail, context, and addresses all parts of the question.
+Identify the distinct requirements or aspects in the question and check whether the response addresses each one. Do not penalize a response for irrelevant detail that the question did not request. List concrete omissions and explain why each is required by the question. If nothing is omitted, write "None".
 
 Provide your evaluation in the following format:
 Score: [0-10]
-Explanation: [detailed explanation of why you gave this score]"""),
+Explanation: [detailed explanation of why you gave this score]
+Omissions:
+- [specific omitted aspect and why it is required, or None]"""),
                 ("user", "Question: {question}\n\nAI Response: {ai_response}")
             ])
 
@@ -46,10 +57,14 @@ Explanation: [detailed explanation of why you gave this score]"""),
                 input_data["retrieved_context"] = retrieved_context
             result = chain.invoke(input_data)
             response_text = result.content
+            score = self._extract_score(response_text)
             return {
                 "dimension": "completeness",
-                "score": self._extract_score(response_text),
+                "score": score,
+                "category": self._category(score),
+                "scale": "0-10",
                 "explanation": self._extract_explanation(response_text),
+                "omissions": self._extract_omissions(response_text),
             }
 
         return self._fallback_evaluate(question, ai_response, retrieved_context)
@@ -57,21 +72,91 @@ Explanation: [detailed explanation of why you gave this score]"""),
     def _fallback_evaluate(self, question: str, ai_response: str, retrieved_context: str = None) -> Dict[str, Any]:
         """Rule-based completeness evaluation when no LLM is configured."""
         if not ai_response or not ai_response.strip():
-            return {"dimension": "completeness", "score": 0.0, "explanation": "The response is empty, so it does not provide a complete answer."}
+            missing_terms = self._missing_terms(question, "")
+            return {
+                "dimension": "completeness",
+                "score": 0.0,
+                "category": self._category(0.0),
+                "scale": "0-10",
+                "explanation": "The response is empty, so it does not provide a complete answer.",
+                "omissions": [
+                    {
+                        "aspect": term,
+                        "reason": f"The question asks about '{term}', but no response was provided.",
+                    }
+                    for term in missing_terms
+                ],
+            }
 
-        question_words = set(re.findall(r"\b\w+\b", question.lower()))
-        answer_words = set(re.findall(r"\b\w+\b", ai_response.lower()))
-        overlap = len(question_words & answer_words)
-        coverage = overlap / max(len(question_words), 1)
+        question_terms = list(dict.fromkeys(
+            token.lower()
+            for token in re.findall(r"\b\w+\b", question)
+            if token.lower() not in self.QUESTION_STOP_WORDS
+        ))
+        missing_terms = self._missing_terms(question, ai_response)
+
+        coverage = (len(question_terms) - len(missing_terms)) / max(len(question_terms), 1)
         length_score = min(1.0, len(re.findall(r"\b\w+\b", ai_response)) / 40.0)
+        score = max(0.0, min(10.0, coverage * 8.0 + length_score * 2.0))
+        omissions = [
+            {
+                "aspect": term,
+                "reason": f"The question asks about '{term}', but the response does not mention it.",
+            }
+            for term in missing_terms
+        ]
+        if omissions:
+            explanation = (
+                "The response does not cover all identifiable question aspects. "
+                "The listed omissions are terms explicitly requested by the question; "
+                "this rule-based check may not recognize equivalent wording."
+            )
+        else:
+            explanation = (
+                "The response covers the identifiable content terms in the question. "
+                "This is a rule-based estimate and may not recognize every multi-part requirement."
+            )
+        return {
+            "dimension": "completeness",
+            "score": round(score, 2),
+            "category": self._category(score),
+            "scale": "0-10",
+            "explanation": explanation,
+            "omissions": omissions,
+        }
 
-        score = (coverage * 7.5) + (length_score * 2.5)
-        score = max(0.0, min(10.0, score))
-        explanation = (
-            "The response addresses " + str(overlap) + " major question terms and has "
-            + ("sufficient detail to be considered fairly complete." if score >= 6 else "limited detail and misses important parts of the question.")
-        )
-        return {"dimension": "completeness", "score": round(score, 2), "explanation": explanation}
+    @staticmethod
+    def _stem(token: str) -> str:
+        return re.sub(r"(ing|ed|s)$", "", token)
+
+    @classmethod
+    def _missing_terms(cls, question: str, ai_response: str):
+        question_terms = list(dict.fromkeys(
+            token.lower()
+            for token in re.findall(r"\b\w+\b", question)
+            if token.lower() not in cls.QUESTION_STOP_WORDS
+        ))
+        answer_terms = {
+            cls._stem(token.lower())
+            for token in re.findall(r"\b\w+\b", ai_response)
+        }
+        missing_terms = []
+        for term in question_terms:
+            if cls._stem(term) not in answer_terms and term not in missing_terms:
+                missing_terms.append(term)
+        return missing_terms
+
+    @staticmethod
+    def _category(score: float) -> str:
+        if score >= 9:
+            return "excellent"
+        if score >= 7:
+            return "good"
+        if score >= 5:
+            return "fair"
+        if score >= 3:
+            return "poor"
+        return "very poor"
 
     def _extract_score(self, text: str) -> float:
         """Extract score from the response."""
@@ -82,7 +167,27 @@ Explanation: [detailed explanation of why you gave this score]"""),
 
     def _extract_explanation(self, text: str) -> str:
         """Extract explanation from the response."""
-        match = re.search(r"Explanation:\s*(.+)", text, re.DOTALL)
+        match = re.search(
+            r"Explanation:\s*(.*?)(?=\n\s*Omissions:|\Z)", text, re.DOTALL
+        )
         if match:
             return match.group(1).strip()
         return text
+
+    def _extract_omissions(self, text: str):
+        """Parse the concrete omissions listed by the judge."""
+        match = re.search(r"Omissions:\s*(.*)", text, re.DOTALL | re.IGNORECASE)
+        if not match:
+            return []
+
+        omissions = []
+        for line in match.group(1).splitlines():
+            item = re.sub(r"^\s*(?:[-*]\s*|\d+[.)]\s*)", "", line).strip()
+            if not item or item.lower() in {"none", "none identified", "n/a"}:
+                continue
+            aspect, separator, reason = item.partition(":")
+            omissions.append({
+                "aspect": aspect.strip(),
+                "reason": reason.strip() if separator else item,
+            })
+        return omissions
